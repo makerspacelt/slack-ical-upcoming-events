@@ -38,21 +38,21 @@ def event_description(event: caldav.Event) -> str:
 
 
 def events_of_week() -> str:
-    start = datetime.now()
+    start = datetime.now(tz=UTC)
     end = start + timedelta(days=7)
     events = calendar.date_search(start=start, end=end)
     return "\n".join([event_description(e) for e in events])
 
 
 def events_in_near_future() -> str:
-    start = datetime.now()
-    end = start + timedelta(minutes=15)
+    start = datetime.now(tz=UTC) + timedelta(minutes=15)
+    end = start + timedelta(minutes=15+UPDATE_INTERVAL_MINUTES)
     events = calendar.date_search(start=start, end=end)
-    return "\n".join([event_description(e) for e in events])
+    return "\n".join([event_description(e) for e in events if start <= e.instance.vevent.dtstart.value < end])
 
 
 def new_events() -> Optional[str]:
-    start = datetime.now() - timedelta(days=365)
+    start = datetime.now(tz=UTC) - timedelta(days=365)
     end = start + timedelta(days=2 * 365)
     events = calendar.date_search(start=start, end=end)
     threshold = datetime.now(tz=UTC) - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
@@ -63,7 +63,7 @@ def new_events() -> Optional[str]:
 
 
 def modified_events() -> Optional[str]:
-    start = datetime.now() - timedelta(days=365)
+    start = datetime.now(tz=UTC) - timedelta(days=365)
     end = start + timedelta(days=2 * 365)
     events = calendar.date_search(start=start, end=end)
     threshold = datetime.now(tz=UTC) - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
