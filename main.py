@@ -1,6 +1,9 @@
-from datetime import datetime, timedelta
+import logging
+import sys
+from datetime import datetime, timedelta, date, time
 from typing import Optional, Union
 
+import requests
 from pytz import timezone, UTC
 from os import environ
 
@@ -13,6 +16,7 @@ UPDATE_INTERVAL_MINUTES = 2
 URL = "https://owncloud.inphima.de/remote.php/dav/calendars/fscs/fs-kalenderics/"
 USER = environ.get("USER")
 PW = environ.get("PW")
+WEBHOOK_URL = environ.get("WEBHOOK_URL")
 
 calendar = caldav.Calendar(client=caldav.DAVClient(url=URL, username=USER, password=PW), url=URL)
 
@@ -44,11 +48,18 @@ def events_of_week() -> str:
     return "\n".join([event_description(e) for e in events])
 
 
+def to_datetime(d: Union[datetime, date]) -> datetime:
+    if isinstance(d, date):
+        return datetime.combine(d, time(0, 0, tzinfo=UTC))
+    return d
+
+
 def events_in_near_future() -> str:
     start = datetime.now(tz=UTC) + timedelta(minutes=15)
     end = start + timedelta(minutes=15+UPDATE_INTERVAL_MINUTES)
     events = calendar.date_search(start=start, end=end)
-    return "\n".join([event_description(e) for e in events if start <= e.instance.vevent.dtstart.value < end])
+    return "\n".join([event_description(e) for e in events
+                      if start <= to_datetime(e.instance.vevent.dtstart.value) < end])
 
 
 def new_events() -> Optional[str]:
@@ -74,29 +85,43 @@ def modified_events() -> Optional[str]:
     return "\n".join([event_description(e) for e in modified])
 
 
+def post_message(msg: str):
+    json = {"text": msg}
+    logging.info("posting message %s" % json)
+    requests.post(WEBHOOK_URL, json=json)
+
+
 def check_for_changes():
-    print("check_for_changes")
+    logging.info("checking for changes")
     new = new_events()
     if new:
-        print("New events:\n" + new)
+        post_message("New events:\n" + new)
     modified = modified_events()
     if modified:
-        print("Modified events:\n" + modified)
+        post_message("Modified events:\n" + modified)
 
     near_future = events_in_near_future()
     if near_future:
-        print("Events starting soon:\n" + near_future)
+        post_message("Events starting soon:\n" + near_future)
     now = datetime.now()
     if now.weekday() == 0 and now.hour == 7 and now.minute < UPDATE_INTERVAL_MINUTES:
         week = events_of_week()
         if week:
-            print("Events this week:\n" + week)
+            post_message("Events this week:\n" + week)
         else:
-            print("No Events this week :'(")
+            post_message("No Events this week :'(")
 
 
-check_for_changes()
-loop = task.LoopingCall(check_for_changes)
-loop.start(UPDATE_INTERVAL_MINUTES * 60)
+def main():
+    logging.basicConfig(format='%(process)d %(asctime)s %(levelname)s: %(message)s',
+                        level=logging.DEBUG, stream=sys.stdout)
 
-reactor.run()
+    check_for_changes()
+    loop = task.LoopingCall(check_for_changes)
+    loop.start(UPDATE_INTERVAL_MINUTES * 60)
+
+    reactor.run()
+
+
+if __name__ == '__main__':
+    main()
