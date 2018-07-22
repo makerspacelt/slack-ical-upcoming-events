@@ -105,10 +105,13 @@ class Event:
 
         ne = Event()
         ne.summary = self.summary
+        ne.location = self.location
         ne.start = new_start
         ne.end = (new_start + duration)
         ne.all_day = (self.all_day and (new_start - self.start).seconds == 0)
         ne.uid = uid
+        ne.created = self.created
+        ne.last_modified = self.last_modified
 
         return ne
 
