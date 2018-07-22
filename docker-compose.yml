@@ -1,0 +1,7 @@
+version: '3'
+services:
+ summary:
+   build: .
+   image: fscs/slack-ics
+   env_file:
+     - .env
