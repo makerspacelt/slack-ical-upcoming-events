@@ -119,6 +119,8 @@ def check_for_changes():
         for message in messages:
             post_message(message)
 
+    logging.info("checking for changes done")
+
 
 def error_handler(error: Failure):
     logging.error(error)
