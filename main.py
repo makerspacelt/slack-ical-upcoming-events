@@ -32,7 +32,7 @@ def event_description(event: Event) -> str:
     location = event.location  # type: Optional[str]
     if location is None:
         location = "<no location>"
-    return "%s from %s to %s in %s" % (summary, date_as_string(start), date_as_string(end), location)
+    return "*%s* from %s to %s in %s" % (summary, date_as_string(start), date_as_string(end), location)
 
 
 def to_datetime(d: Union[datetime, date]) -> datetime:
