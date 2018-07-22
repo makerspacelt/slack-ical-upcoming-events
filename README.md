@@ -6,6 +6,8 @@ Simple Slack app which triggers a webhook when
 
 This app supports iCalendar (iCal, ics) files, which can be created by many CalDAV servers like ownCloud.
 
+Note that the timezone Europe/Berlin is hardcoded in some places.
+
 ## Configuration
 
 Create a file `.env`:
