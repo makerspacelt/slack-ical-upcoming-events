@@ -15,7 +15,7 @@ from icalevents.icalparser import Event
 
 UPDATE_INTERVAL_MINUTES = 2
 
-URLS = environ.get("CALENDAR_URLS").split(", ")
+URLS = environ.get("CALENDAR_URLS", "").split(", ")
 WEBHOOK_URL = environ.get("WEBHOOK_URL")
 
 
