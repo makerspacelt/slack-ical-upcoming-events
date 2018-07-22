@@ -80,7 +80,7 @@ LAST-MODIFIED:20180720T233417
 UID:XEX87XO0JUC9PXOOV2PHJV
 SUMMARY:test3
 DTSTART;TZID=Europe/Berlin:20181003T080000
-DTEND;TZID=Europe/Berlin:20181003T090000
+DTEND;TZID=Europe/Berlin:20181004T070000
 END:VEVENT
 
 BEGIN:VEVENT
@@ -133,7 +133,23 @@ def test_all_day_event_description_without_location():
     description = event_description(events[1])
     assert "test2" in description
     assert "22.07.2018" in description
+    assert "23.07.2018" in description
     assert "00" not in description
+
+
+def test_event_description_end_same_day():
+    description = event_description(events[0])
+    assert description.count("22.07.2018") == 1
+    assert "17:18" in description
+    assert "18:18" in description
+
+
+def test_event_description_end_next_day():
+    description = event_description(events[2])
+    assert "03.10.2018" in description
+    assert "04.10.2018" in description
+    assert "8:00" in description
+    assert "7:00" in description
 
 
 def test_events_of_week():

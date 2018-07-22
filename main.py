@@ -27,6 +27,10 @@ def datetime_as_string(date: datetime) -> str:
     return date.astimezone(timezone('Europe/Berlin')).strftime("%d.%m.%Y %H:%M")
 
 
+def time_as_string(date: datetime) -> str:
+    return date.astimezone(timezone('Europe/Berlin')).strftime("%H:%M")
+
+
 def event_description(event: Event) -> str:
     start = event.start  # type: datetime
     end = event.end  # type: datetime
@@ -34,10 +38,14 @@ def event_description(event: Event) -> str:
     location = event.location  # type: Optional[str]
     if location is None:
         location = "<no location>"
-    return "*%s* from %s to %s at %s" % (summary,
-                                         date_as_string(start) if event.all_day else datetime_as_string(start),
-                                         date_as_string(end) if event.all_day else datetime_as_string(end),
-                                         location)
+    if start.day == end.day:
+        if event.all_day:
+            return "*%s* %s at %s" % (summary, date_as_string(start), location)
+        return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), time_as_string(end), location)
+    else:
+        if event.all_day:
+            return "*%s* from %s to %s at %s" % (summary, date_as_string(start), date_as_string(end), location)
+        return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), datetime_as_string(end), location)
 
 
 def to_datetime(d: Union[datetime, date]) -> datetime:
