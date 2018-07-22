@@ -87,7 +87,8 @@ class ICalDownload:
         :param apple_fix: fix Apple txdata bug
         :return: decoded (and fixed) content
         """
-        content = content.decode(self.encoding)
+        if type(content) != str:
+            content = content.decode(self.encoding)
         content = content.replace('\r', '')
 
         if apple_fix:
