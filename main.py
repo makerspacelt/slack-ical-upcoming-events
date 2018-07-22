@@ -1,15 +1,14 @@
 import logging
 import sys
 from datetime import datetime, timedelta, date, time
+from os import environ
 from typing import Optional, Union
 
-import requests
-from pytz import timezone, UTC
-from os import environ
-
 import caldav
-from twisted.internet import task
+from pytz import timezone, UTC
 from twisted.internet import reactor
+from twisted.internet import task
+from twisted.python.failure import Failure
 
 UPDATE_INTERVAL_MINUTES = 2
 
@@ -88,7 +87,7 @@ def modified_events() -> Optional[str]:
 def post_message(msg: str):
     json = {"text": msg}
     logging.info("posting message %s" % json)
-    requests.post(WEBHOOK_URL, json=json)
+    # requests.post(WEBHOOK_URL, json=json)
 
 
 def check_for_changes():
@@ -112,13 +111,18 @@ def check_for_changes():
             post_message("No Events this week :'(")
 
 
+def error_handler(error: Failure):
+    logging.error(error)
+    post_message("Sorry, there was an error 🤯. I will kill myself 🔫.\n%s" % str(error.value))
+
+
 def main():
     logging.basicConfig(format='%(process)d %(asctime)s %(levelname)s: %(message)s',
-                        level=logging.DEBUG, stream=sys.stdout)
+                        level=logging.INFO, stream=sys.stdout)
 
-    check_for_changes()
     loop = task.LoopingCall(check_for_changes)
-    loop.start(UPDATE_INTERVAL_MINUTES * 60)
+    deferred = loop.start(UPDATE_INTERVAL_MINUTES * 60)
+    deferred.addErrback(error_handler)
 
     reactor.run()
 
