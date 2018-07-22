@@ -32,6 +32,7 @@ class Event:
         """
         self.uid = -1
         self.summary = None
+        self.location = None
         self.start = None
         self.end = None
         self.all_day = True
@@ -164,6 +165,7 @@ def create_event(component):
     event.end = event_end
     event.summary = str(component.get('summary'))
     event.description = str(component.get('description'))
+    event.location = str(component.get('location')) if component.get('location') is not None else None
     event.all_day = type(component.get('dtstart').dt) is datetime.date
     event.created = component.get('created').dt
     if event.created.tzinfo is None:
