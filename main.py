@@ -2,22 +2,20 @@ import logging
 import sys
 from datetime import datetime, timedelta, date, time
 from os import environ
-from typing import Optional, Union
+from typing import Union, Optional
 
-import caldav
 from pytz import timezone, UTC
 from twisted.internet import reactor
 from twisted.internet import task
 from twisted.python.failure import Failure
 
+import icalevents.icalevents as icalevents
+from icalevents.icalparser import Event
+
 UPDATE_INTERVAL_MINUTES = 2
 
-URL = "https://owncloud.inphima.de/remote.php/dav/calendars/fscs/fs-kalenderics/"
-USER = environ.get("USER")
-PW = environ.get("PW")
+URL = "https://owncloud.inphima.de/remote.php/dav/public-calendars/J10H5ZV9WMJXB0CD?export"
 WEBHOOK_URL = environ.get("WEBHOOK_URL")
-
-calendar = caldav.Calendar(client=caldav.DAVClient(url=URL, username=USER, password=PW), url=URL)
 
 
 def date_as_string(date: Union[datetime.date, datetime]) -> str:
@@ -26,89 +24,92 @@ def date_as_string(date: Union[datetime.date, datetime]) -> str:
     return date.strftime("%d.%m.%Y")
 
 
-def event_description(event: caldav.Event) -> str:
-    start = event.instance.vevent.dtstart.value  # type: datetime
-    end = event.instance.vevent.dtend.value  # type: datetime
-    try:
-        summary = event.instance.vevent.summary.value  # type: str
-    except AttributeError:
-        summary = "<no summary>"
-    try:
-        location = event.instance.vevent.location.value  # type: str
-    except AttributeError:
+def event_description(event: Event) -> str:
+    start = event.start  # type: datetime
+    end = event.end  # type: datetime
+    summary = event.summary  # type: str
+    location = event.location  # type: Optional[str]
+    if location is None:
         location = "<no location>"
     return "%s from %s to %s in %s" % (summary, date_as_string(start), date_as_string(end), location)
 
 
-def events_of_week() -> str:
-    start = datetime.now(tz=UTC)
-    end = start + timedelta(days=7)
-    events = calendar.date_search(start=start, end=end)
-    return "\n".join([event_description(e) for e in events])
-
-
 def to_datetime(d: Union[datetime, date]) -> datetime:
-    if isinstance(d, date):
-        return datetime.combine(d, time(0, 0, tzinfo=UTC))
-    return d
+    if isinstance(d, datetime):
+        return d
+    return datetime.combine(d, time(0, 0, tzinfo=UTC))
 
 
-def events_in_near_future() -> str:
-    start = datetime.now(tz=UTC) + timedelta(minutes=15)
-    end = start + timedelta(minutes=15+UPDATE_INTERVAL_MINUTES)
-    events = calendar.date_search(start=start, end=end)
-    return "\n".join([event_description(e) for e in events
-                      if start <= to_datetime(e.instance.vevent.dtstart.value) < end])
+def events_of_week(events: [Event], now: datetime) -> [Event]:
+    start = now
+    end = start + timedelta(days=7)
+    return [e for e in events if start <= to_datetime(e.start) < end]
 
 
-def new_events() -> Optional[str]:
-    start = datetime.now(tz=UTC) - timedelta(days=365)
-    end = start + timedelta(days=2 * 365)
-    events = calendar.date_search(start=start, end=end)
-    threshold = datetime.now(tz=UTC) - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
-    new = [e for e in events if e.instance.vevent.created.value >= threshold]
-    if len(new) == 0:
-        return None
-    return "\n".join([event_description(e) for e in new])
+def events_in_near_future(events: [Event], now: datetime) -> [Event]:
+    start = now + timedelta(minutes=15)
+    end = start + timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+    return [e for e in events if start <= to_datetime(e.start) < end]
 
 
-def modified_events() -> Optional[str]:
-    start = datetime.now(tz=UTC) - timedelta(days=365)
-    end = start + timedelta(days=2 * 365)
-    events = calendar.date_search(start=start, end=end)
-    threshold = datetime.now(tz=UTC) - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
-    modified = [e for e in events
-                if e.instance.vevent.last_modified.value >= threshold > e.instance.vevent.created.value]
-    if len(modified) == 0:
-        return None
-    return "\n".join([event_description(e) for e in modified])
+def new_events(events: [Event], now: datetime) -> [Event]:
+    start = now - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+    end = now
+    return [e for e in events if start <= to_datetime(e.created) < end]
 
 
-def post_message(msg: str):
-    json = {"text": msg}
-    logging.info("posting message %s" % json)
+def modified_events(events: [Event], now: datetime) -> [Event]:
+    start = now - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+    end = now
+    return [e for e in events if start <= to_datetime(e.last_modified) < end
+            and not(start <= to_datetime(e.created) < end)]
+
+
+def get_message(msg: str, events: [Event]) -> dict:
+    return {"text": msg + "\n" + "\n".join([event_description(e) for e in events])}
+
+
+def get_messages(events, now):
+    messages = []
+    new = new_events(events, now)
+    if len(new) > 0:
+        messages.append(get_message("New event:", new))
+
+    modified = modified_events(events, now)
+    if len(modified) > 0:
+        messages.append(get_message("Modified event:", modified))
+
+    near_future = events_in_near_future(events, now)
+    if len(near_future) > 0:
+        messages.append(get_message("Event starting soon:", near_future))
+
+    if now.weekday() == 0 and now.hour == 7 and now.minute < UPDATE_INTERVAL_MINUTES:
+        week = events_of_week(events, now)
+        if len(week) > 0:
+            messages.append(get_message("Events this week:", week))
+        else:
+            messages.append(get_message("No Events this week 😢", []))
+
+    return messages
+
+
+def post_message(msg: dict):
+    logging.info("posting message %s" % msg)
     # requests.post(WEBHOOK_URL, json=json)
 
 
 def check_for_changes():
     logging.info("checking for changes")
-    new = new_events()
-    if new:
-        post_message("New events:\n" + new)
-    modified = modified_events()
-    if modified:
-        post_message("Modified events:\n" + modified)
 
-    near_future = events_in_near_future()
-    if near_future:
-        post_message("Events starting soon:\n" + near_future)
-    now = datetime.now()
-    if now.weekday() == 0 and now.hour == 7 and now.minute < UPDATE_INTERVAL_MINUTES:
-        week = events_of_week()
-        if week:
-            post_message("Events this week:\n" + week)
-        else:
-            post_message("No Events this week :'(")
+    events = icalevents.events(URL,
+                               start=datetime.now() - timedelta(days=365),
+                               end=datetime.now() + timedelta(days=3 * 365))
+    now = datetime.now(tz=UTC)
+
+    messages = get_messages(events, now)
+
+    for message in messages:
+        post_message(message)
 
 
 def error_handler(error: Failure):
