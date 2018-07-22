@@ -19,10 +19,12 @@ URL = "https://owncloud.inphima.de/remote.php/dav/public-calendars/J10H5ZV9WMJXB
 WEBHOOK_URL = environ.get("WEBHOOK_URL")
 
 
-def date_as_string(date: Union[datetime.date, datetime]) -> str:
-    if isinstance(date, datetime):
-        return date.astimezone(timezone('Europe/Berlin')).strftime("%d.%m.%Y %H:%M")
+def date_as_string(date: datetime) -> str:
     return date.strftime("%d.%m.%Y")
+
+
+def datetime_as_string(date: datetime) -> str:
+    return date.astimezone(timezone('Europe/Berlin')).strftime("%d.%m.%Y %H:%M")
 
 
 def event_description(event: Event) -> str:
@@ -32,7 +34,10 @@ def event_description(event: Event) -> str:
     location = event.location  # type: Optional[str]
     if location is None:
         location = "<no location>"
-    return "*%s* from %s to %s in %s" % (summary, date_as_string(start), date_as_string(end), location)
+    return "*%s* from %s to %s in %s" % (summary,
+                                         date_as_string(start) if event.all_day else datetime_as_string(start),
+                                         date_as_string(end) if event.all_day else datetime_as_string(end),
+                                         location)
 
 
 def to_datetime(d: Union[datetime, date]) -> datetime:

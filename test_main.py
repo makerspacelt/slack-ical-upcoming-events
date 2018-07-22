@@ -131,10 +131,9 @@ def test_event_description_with_datetime_and_location():
 
 def test_all_day_event_description_without_location():
     description = event_description(events[1])
-    e = events[1]
     assert "test2" in description
     assert "22.07.2018" in description
-    # assert "00" not in description # TODO
+    assert "00" not in description
 
 
 def test_events_of_week():
