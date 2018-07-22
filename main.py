@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, date, time
 from os import environ
 from typing import Union, Optional
 
+import requests
 from pytz import timezone, UTC
 from twisted.internet import reactor
 from twisted.internet import task
@@ -95,7 +96,7 @@ def get_messages(events, now):
 
 def post_message(msg: dict):
     logging.info("posting message %s" % msg)
-    # requests.post(WEBHOOK_URL, json=json)
+    requests.post(WEBHOOK_URL, json=msg)
 
 
 def check_for_changes():
@@ -114,7 +115,7 @@ def check_for_changes():
 
 def error_handler(error: Failure):
     logging.error(error)
-    post_message("Sorry, there was an error 🤯. I will kill myself 🔫.\n%s" % str(error.value))
+    post_message(get_message("Sorry, there was an error 🤯. I will kill myself 🔫.\n%s" % str(error.value), []))
 
 
 def main():
