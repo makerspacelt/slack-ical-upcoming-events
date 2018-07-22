@@ -15,7 +15,7 @@ from icalevents.icalparser import Event
 
 UPDATE_INTERVAL_MINUTES = 2
 
-URL = "https://owncloud.inphima.de/remote.php/dav/public-calendars/J10H5ZV9WMJXB0CD?export"
+URLS = environ.get("CALENDAR_URLS").split(", ")
 WEBHOOK_URL = environ.get("WEBHOOK_URL")
 
 
@@ -107,15 +107,17 @@ def post_message(msg: dict):
 def check_for_changes():
     logging.info("checking for changes")
 
-    events = icalevents.events(URL,
-                               start=datetime.now() - timedelta(days=365),
-                               end=datetime.now() + timedelta(days=3 * 365))
     now = datetime.now(tz=UTC)
 
-    messages = get_messages(events, now)
+    for url in URLS:
+        events = icalevents.events(url,
+                                   start=now - timedelta(days=365),
+                                   end=now + timedelta(days=3 * 365))
 
-    for message in messages:
-        post_message(message)
+        messages = get_messages(events, now)
+
+        for message in messages:
+            post_message(message)
 
 
 def error_handler(error: Failure):
