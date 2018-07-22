@@ -94,7 +94,7 @@ def get_messages(events, now):
         if len(week) > 0:
             messages.append(get_message("Events this week:", week))
         else:
-            messages.append(get_message("No Events this week 😢", []))
+            messages.append(get_message("No events this week 😢", []))
 
     return messages
 
