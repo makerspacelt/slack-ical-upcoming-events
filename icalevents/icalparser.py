@@ -6,8 +6,7 @@ from random import randint
 from datetime import datetime, timedelta, date
 
 from icalendar import Calendar
-from pytz import utc
-
+from pytz import utc, timezone
 
 # default query length (one week)
 default_span = timedelta(days=7)
@@ -36,6 +35,8 @@ class Event:
         self.start = None
         self.end = None
         self.all_day = True
+        self.created = None
+        self.last_modified = None
 
     def time_left(self, time=now()):
         """
@@ -142,6 +143,11 @@ def next_month_at(dt, count=1):
                               second=dt.second, microsecond=dt.microsecond))
 
 
+def force_berlin_zone(dt: datetime) -> datetime:
+    tz = timezone('Europe/Berlin')
+    return tz.localize(dt.replace(tzinfo=None))
+
+
 def create_event(component):
     """
     Create an event from its iCal representation.
@@ -157,9 +163,14 @@ def create_event(component):
     event.start = event_start
     event.end = event_end
     event.summary = str(component.get('summary'))
-    event.description  = str(component.get('description'))
+    event.description = str(component.get('description'))
     event.all_day = type(component.get('dtstart').dt) is datetime.date
-
+    event.created = component.get('created').dt
+    if event.created.tzinfo is None:
+        event.created = force_berlin_zone(event.created)
+    event.last_modified = component.get('last-modified').dt
+    if event.last_modified.tzinfo is None:
+        event.last_modified = force_berlin_zone(event.last_modified)
     return event
 
 
