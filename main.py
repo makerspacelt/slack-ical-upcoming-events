@@ -117,15 +117,16 @@ def check_for_changes():
 
     now = datetime.now(tz=UTC)
 
-    for url in URLS:
-        events = icalevents.events(url,
-                                   start=now - timedelta(days=365),
-                                   end=now + timedelta(days=3 * 365))
+    events = sorted([event
+                     for url in URLS
+                     for event in icalevents.events(url,
+                                                    start=now - timedelta(days=365),
+                                                    end=now + timedelta(days=3 * 365))])
 
-        messages = get_messages(events, now)
+    messages = get_messages(events, now)
 
-        for message in messages:
-            post_message(message)
+    for message in messages:
+        post_message(message)
 
     logging.info("checking for changes done")
 
