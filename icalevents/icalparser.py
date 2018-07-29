@@ -169,7 +169,7 @@ def create_event(component):
     event.summary = str(component.get('summary'))
     event.description = str(component.get('description'))
     event.location = str(component.get('location')) if component.get('location') is not None else None
-    event.all_day = type(component.get('dtstart').dt) is datetime.date or (event_end - event_start == timedelta(days=1))
+    event.all_day = type(component.get('dtstart').dt) is date
     event.created = component.get('created').dt
     if event.created.tzinfo is None:
         event.created = force_berlin_zone(event.created)
