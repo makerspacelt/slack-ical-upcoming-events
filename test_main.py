@@ -110,6 +110,19 @@ SEQUENCE:1
 X-MOZ-GENERATION:1
 END:VEVENT
 
+BEGIN:VEVENT
+CREATED:20180822T150646Z
+LAST-MODIFIED:20180822T152255Z
+DTSTAMP:20180822T152255Z
+UID:6b6a242f-2041-485f-a527-4579b58a1898
+SUMMARY:allday 2nd day
+DTSTART;VALUE=DATE:20180822
+DTEND;VALUE=DATE:20180824
+TRANSP:TRANSPARENT
+X-MOZ-GENERATION:3
+SEQUENCE:1
+END:VEVENT
+
 END:VCALENDAR
 """
 
@@ -133,7 +146,7 @@ def test_all_day_event_description_without_location():
     description = event_description(events[1])
     assert "test2" in description
     assert "22.07.2018" in description
-    assert "23.07.2018" in description
+    assert "23.07.2018" not in description
     assert "00" not in description
 
 
@@ -150,6 +163,15 @@ def test_event_description_end_next_day():
     assert "04.10.2018" in description
     assert "8:00" in description
     assert "7:00" in description
+
+
+def test_all_day_event_description_end_next_day():
+    description = event_description(events[7])
+    assert "allday 2nd day" in description
+    assert "22.08.2018" in description
+    assert "23.08.2018" in description
+    assert "24.08.2018" not in description
+    assert "00" not in description
 
 
 def test_events_of_week():

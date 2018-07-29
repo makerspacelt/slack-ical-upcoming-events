@@ -38,13 +38,14 @@ def event_description(event: Event) -> str:
     location = event.location  # type: Optional[str]
     if location is None:
         location = "<no location>"
-    if start.day == end.day:
-        if event.all_day:
+    if event.all_day:
+        end_day = end.date() - timedelta(days=1)
+        if start.date() == end_day:
             return "*%s* %s at %s" % (summary, date_as_string(start), location)
-        return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), time_as_string(end), location)
+        return "*%s* from %s to %s at %s" % (summary, date_as_string(start), date_as_string(end_day), location)
     else:
-        if event.all_day:
-            return "*%s* from %s to %s at %s" % (summary, date_as_string(start), date_as_string(end), location)
+        if start.date() == end.date():
+            return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), time_as_string(end), location)
         return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), datetime_as_string(end), location)
 
 
