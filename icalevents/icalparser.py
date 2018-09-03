@@ -143,8 +143,23 @@ def next_month_at(dt, count=1):
         month -= 12
         year += 1
 
-    return normalize(datetime(year=year, month=month, day=dt.day, hour=dt.hour, minute=dt.minute,
-                              second=dt.second, microsecond=dt.microsecond, tzinfo=dt.tzinfo))
+    return force_berlin_zone(datetime(year=year, month=month, day=dt.day, hour=dt.hour, minute=dt.minute,
+                                      second=dt.second, microsecond=dt.microsecond))
+
+
+def next_month_at_first_tuesday(dt, count=1):
+    """
+    Move date <count> months to the future and set it to the first tuesday of the month.
+
+    :param dt: date as datetime
+    :param count: number of months
+    :return: date datetime
+    """
+    next_month = next_month_at(dt, count)
+    next_month = next_month - timedelta(days=next_month.day - 1)
+    while next_month.weekday() != 1:
+        next_month = next_month + timedelta(days=1)
+    return next_month
 
 
 def force_berlin_zone(dt: datetime) -> datetime:
@@ -275,12 +290,12 @@ def parse_events(content, start=None, end=None):
 
 def create_recurring_events(start, end, component):
     """
-    Unfold a reoccurring events to its occurrances into the given time frame.
+    Unfold a reoccurring events to its occurrences into the given time frame.
 
     :param start: start of the time frame
     :param end: end of the time frame
     :param component: iCal component
-    :return: occurrances of the event
+    :return: occurrences of the event
     """
     start = normalize(start)
     end = normalize(end)
@@ -312,12 +327,21 @@ def create_recurring_events(start, end, component):
             else:
                 break
     if freq == 'MONTHLY':
-        while True:
-            current = current.copy_to(next_month_at(current.start))
-            if current.start < limit:
-                unfolded.append(current)
-            else:
-                break
+        by_day = rule.get('BYDAY')
+        if by_day == ["1TU"]:  # TODO support more variants
+            while True:
+                current = current.copy_to(next_month_at_first_tuesday(current.start))
+                if current.start <= limit:
+                    unfolded.append(current)
+                else:
+                    break
+        else:
+            while True:
+                current = current.copy_to(next_month_at(current.start))
+                if current.start <= limit:
+                    unfolded.append(current)
+                else:
+                    break
     else:
         if freq == 'DAILY':
             delta = timedelta(days=1)

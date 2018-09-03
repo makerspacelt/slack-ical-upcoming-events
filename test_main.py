@@ -128,8 +128,8 @@ END:VCALENDAR
 
 events = icalevents.events(
     string_content=ics,
-    start=datetime.now() - timedelta(days=365),
-    end=datetime.now() + timedelta(days=3 * 365)
+    start=datetime(2018, 7, 1) - timedelta(days=365),
+    end=datetime(2018, 7, 1) + timedelta(days=3 * 365)
 )
 
 
@@ -166,7 +166,7 @@ def test_event_description_end_next_day():
 
 
 def test_all_day_event_description_end_next_day():
-    description = event_description(events[7])
+    description = event_description(events[8])
     assert "allday 2nd day" in description
     assert "22.08.2018" in description
     assert "23.08.2018" in description
@@ -232,3 +232,11 @@ def test_get_messages_events_this_week_recurring():
     assert "test3" in messages[0]["text"]
     assert "test4" in messages[0]["text"]
     assert "Stammtisch" in messages[0]["text"]
+    assert "02.10." in messages[0]["text"]
+    assert "19:00" in messages[0]["text"]
+
+
+def test_date_of_tuesday_recurring_utc_plus_1_time():
+    description = event_description(events[7])
+    assert "06.11.2018" in description
+    assert "19:00" in description
