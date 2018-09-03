@@ -144,7 +144,7 @@ def next_month_at(dt, count=1):
         year += 1
 
     return normalize(datetime(year=year, month=month, day=dt.day, hour=dt.hour, minute=dt.minute,
-                              second=dt.second, microsecond=dt.microsecond))
+                              second=dt.second, microsecond=dt.microsecond, tzinfo=dt.tzinfo))
 
 
 def force_berlin_zone(dt: datetime) -> datetime:
