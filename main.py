@@ -17,6 +17,7 @@ UPDATE_INTERVAL_MINUTES = 2
 
 URLS = environ.get("CALENDAR_URLS", "").split(", ")
 WEBHOOK_URL = environ.get("WEBHOOK_URL")
+WEBHOOK_ERROR_URL = environ.get("WEBHOOK_ERROR_URL")
 
 
 def date_as_string(date: datetime) -> str:
@@ -113,6 +114,11 @@ def post_message(msg: dict):
     requests.post(WEBHOOK_URL, json=msg)
 
 
+def post_error_message(msg: dict):
+    logging.info("posting error message %s" % msg)
+    requests.post(WEBHOOK_ERROR_URL, json=msg)
+
+
 def check_for_changes():
     logging.info("checking for changes")
 
@@ -134,7 +140,7 @@ def check_for_changes():
 
 def error_handler(error: Failure):
     logging.error(error)
-    post_message(get_message("Sorry, there was an error 🤯. I will kill myself 🔫.\n%s" % str(error.value), []))
+    post_error_message(get_message("Sorry, there was an error 🤯. I will kill myself 🔫.\n%s" % str(error.value), []))
 
 
 def main():
