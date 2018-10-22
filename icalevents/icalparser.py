@@ -353,6 +353,8 @@ def create_recurring_events(start, end, component):
         by_day = rule.get('BYDAY')
         if by_day:
             day_deltas = generate_day_deltas_by_weekday(set(by_day))
+            if rule.get("INTERVAL") == [2]:
+                day_deltas = {weekday: delta * 2 for weekday, delta in day_deltas.items()}
         else:
             day_deltas = None
 

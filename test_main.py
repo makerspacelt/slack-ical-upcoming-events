@@ -123,6 +123,18 @@ X-MOZ-GENERATION:3
 SEQUENCE:1
 END:VEVENT
 
+BEGIN:VEVENT
+CREATED:20181009T194528Z
+LAST-MODIFIED:20181009T194625Z
+DTSTAMP:20181009T194625Z
+UID:30b2ee53-053b-4ea3-8d73-1edc8f65f87e
+SUMMARY:FSVK
+RRULE:FREQ=WEEKLY;UNTIL=20181218T171500Z;INTERVAL=2;BYDAY=TU
+DTSTART;TZID=Europe/Berlin:20181016T181500
+DTEND;TZID=Europe/Berlin:20181016T201500
+TRANSP:OPAQUE
+END:VEVENT
+
 END:VCALENDAR
 """
 
@@ -240,3 +252,14 @@ def test_date_of_tuesday_recurring_utc_plus_1_time():
     description = event_description(events[7])
     assert "06.11.2018" in description
     assert "19:00" in description
+
+
+def test_biweekly_event():
+    week_start = events_of_week(events, datetime(2018, 10, 15, 8, 0, tzinfo=UTC))
+    week_middle_not_included = events_of_week(events, datetime(2018, 10, 22, 8, 0, tzinfo=UTC))
+    week_middle_included = events_of_week(events, datetime(2018, 10, 29, 8, 0, tzinfo=UTC))
+    week_last = events_of_week(events, datetime(2018, 12, 10, 8, 0, tzinfo=UTC))
+    week_after_last = events_of_week(events, datetime(2018, 12, 17, 8, 0, tzinfo=UTC))
+    assert [e.summary for [e] in [week_start, week_middle_included, week_last]] == ["FSVK"] * 3
+    assert len(week_start +  week_middle_included + week_last) == 3
+    assert len(week_middle_not_included + week_after_last) == 0
