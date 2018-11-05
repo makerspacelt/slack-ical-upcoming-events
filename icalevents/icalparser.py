@@ -185,7 +185,7 @@ def create_event(component):
     event.description = str(component.get('description'))
     event.location = str(component.get('location')) if component.get('location') is not None else None
     event.all_day = type(component.get('dtstart').dt) is date
-    event.created = component.get('created').dt
+    event.created = component.get('created').dt if component.get('created') else datetime(1970, 1, 1)
     if event.created.tzinfo is None:
         event.created = force_berlin_zone(event.created)
     event.last_modified = component.get('last-modified').dt if component.get('last-modified') is not None else event.created
