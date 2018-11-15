@@ -283,3 +283,5 @@ def test_biweekly_event():
     assert [e.summary for [e] in [week_start, week_middle_included, week_last]] == ["FSVK"] * 3
     assert len(week_start +  week_middle_included + week_last) == 3
     assert len(week_middle_not_included + week_after_last) == 0
+    assert "18:15" in event_description(week_start[0])
+    assert "18:15" in event_description(week_last[0])

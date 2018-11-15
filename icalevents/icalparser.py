@@ -361,13 +361,22 @@ def create_recurring_events(start, end, component):
         while True:
             if day_deltas is not None:
                 delta = timedelta(days=day_deltas.get(current.start.weekday()))
-            current = current.copy_to(current.start + delta)
+
+            current = current.copy_to(add_time_delta_dst_aware(current.start, delta))
             if current.start < limit:
                 unfolded.append(current)
             else:
                 break
 
     return in_range(unfolded, start, end)
+
+
+def add_time_delta_dst_aware(dt: datetime, delta: timedelta) -> datetime:
+    """inspired by https://stackoverflow.com/questions/25715276/python-daylight-saving-time-issues/25725161#25725161"""
+    orig_tz = dt.tzinfo
+    dt = dt.replace(tzinfo=None)
+    dt += delta
+    return orig_tz.localize(dt)
 
 
 def generate_day_deltas_by_weekday(by_day):
