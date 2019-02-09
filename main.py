@@ -122,20 +122,24 @@ def post_error_message(msg: dict):
 def check_for_changes():
     logging.info("checking for changes")
 
-    now = datetime.now(tz=UTC)
+    try:
+        now = datetime.now(tz=UTC)
 
-    events = sorted([event
-                     for url in URLS
-                     for event in icalevents.events(url,
-                                                    start=now - timedelta(days=365),
-                                                    end=now + timedelta(days=3 * 365))])
+        events = sorted([event
+                        for url in URLS
+                        for event in icalevents.events(url,
+                                                        start=now - timedelta(days=365),
+                                                        end=now + timedelta(days=3 * 365))])
 
-    messages = get_messages(events, now)
+        messages = get_messages(events, now)
 
-    for message in messages:
-        post_message(message)
+        for message in messages:
+            post_message(message)
 
-    logging.info("checking for changes done")
+        logging.info("checking for changes done")
+    except Error as e:
+        logging.error(str(e))
+        post_error_message(get_message("Sorry, there was an error 🤯.\n%s" % str(e), []))
 
 
 def error_handler(error: Failure):
