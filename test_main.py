@@ -155,6 +155,19 @@ DTEND;VALUE=DATE:20131104
 TRANSP:TRANSPARENT
 END:VEVENT
 
+BEGIN:VEVENT
+CREATED:20190207T092257Z
+LAST-MODIFIED:20190207T092342Z
+DTSTAMP:20190207T092342Z
+UID:047ae3bb-7e00-41c9-8cba-9c481529548d
+SUMMARY:Sitzung
+RRULE:FREQ=WEEKLY;UNTIL=20190402T121000Z;INTERVAL=2
+DTSTART;TZID=Europe/Berlin:20190212T141000
+DTEND;TZID=Europe/Berlin:20190212T151000
+TRANSP:OPAQUE
+LOCATION:25.12.O1.51
+END:VEVENT
+
 END:VCALENDAR
 """
 
@@ -285,3 +298,16 @@ def test_biweekly_event():
     assert len(week_middle_not_included + week_after_last) == 0
     assert "18:15" in event_description(week_start[0])
     assert "18:15" in event_description(week_last[0])
+
+
+def test_biweekly_event_not_by_day():
+    week_start = events_of_week(events, datetime(2019, 2, 11, 8, 0, tzinfo=UTC))
+    week_middle_not_included = events_of_week(events, datetime(2019, 2, 18, 8, 0, tzinfo=UTC))
+    week_middle_included = events_of_week(events, datetime(2019, 2, 26, 8, 0, tzinfo=UTC))
+    week_last = events_of_week(events, datetime(2019, 3, 26, 8, 0, tzinfo=UTC))
+    week_after_last = events_of_week(events, datetime(2019, 4, 1, 8, 0, tzinfo=UTC))
+    assert [e.summary for [e] in [week_start, week_middle_included, week_last]] == ["Sitzung"] * 3
+    assert len(week_start + week_middle_included + week_last) == 3
+    assert len(week_middle_not_included + week_after_last) == 0
+    assert "14:10" in event_description(week_start[0])
+    assert "14:10" in event_description(week_last[0])
