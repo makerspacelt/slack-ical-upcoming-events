@@ -2,8 +2,10 @@ from datetime import datetime, timedelta
 
 from pytz import UTC
 
+import main
 from icalevents import icalevents
-from main import event_description, events_of_week, events_in_near_future, new_events, modified_events, get_messages
+from main import event_description, events_of_week, events_in_near_future, new_events, modified_events, get_messages, \
+    check_for_changes
 
 ics = """
 BEGIN:VCALENDAR
@@ -311,3 +313,8 @@ def test_biweekly_event_not_by_day():
     assert len(week_middle_not_included + week_after_last) == 0
     assert "14:10" in event_description(week_start[0])
     assert "14:10" in event_description(week_last[0])
+
+
+def test_check_for_changes_does_not_crash():
+    main.URLS = ["http://example.test"]
+    assert check_for_changes() is None

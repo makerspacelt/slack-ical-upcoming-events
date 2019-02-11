@@ -128,8 +128,8 @@ def check_for_changes():
         events = sorted([event
                         for url in URLS
                         for event in icalevents.events(url,
-                                                        start=now - timedelta(days=365),
-                                                        end=now + timedelta(days=3 * 365))])
+                                                       start=now - timedelta(days=365),
+                                                       end=now + timedelta(days=3 * 365))])
 
         messages = get_messages(events, now)
 
@@ -137,9 +137,12 @@ def check_for_changes():
             post_message(message)
 
         logging.info("checking for changes done")
-    except Error as e:
+    except Exception as e:
         logging.error(str(e))
-        post_error_message(get_message("Sorry, there was an error 🤯.\n%s" % str(e), []))
+        try:
+            post_error_message(get_message("Sorry, there was an error 🤯.\n%s" % str(e), []))
+        except Exception as e:
+            logging.error("WTF: " + str(e))
 
 
 def error_handler(error: Failure):
