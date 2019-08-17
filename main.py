@@ -20,16 +20,16 @@ WEBHOOK_URL = environ.get("WEBHOOK_URL")
 WEBHOOK_ERROR_URL = environ.get("WEBHOOK_ERROR_URL")
 
 
-def date_as_string(date: datetime) -> str:
+def date_as_string(date: Union[datetime, date]) -> str:
     return date.strftime("%d.%m.%Y")
 
 
 def datetime_as_string(date: datetime) -> str:
-    return date.astimezone(timezone('Europe/Berlin')).strftime("%d.%m.%Y %H:%M")
+    return date.strftime("%d.%m.%Y %H:%M")
 
 
 def time_as_string(date: datetime) -> str:
-    return date.astimezone(timezone('Europe/Berlin')).strftime("%H:%M")
+    return date.strftime("%H:%M")
 
 
 def event_description(event: Event) -> str:
