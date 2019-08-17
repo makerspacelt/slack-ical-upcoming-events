@@ -4,12 +4,13 @@ Parse iCal data to Events.
 # for UID generation
 from random import randint
 from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta
+from dateutil.rrule import rrule, rruleset, rrulestr
+from dateutil.tz import UTC, gettz
+from pytz import timezone
 
 from icalendar import Calendar
-from pytz import utc, timezone
-
-# default query length (one week)
-default_span = timedelta(days=7)
+from icalendar.prop import vDDDLists
 
 
 def now():
@@ -18,7 +19,7 @@ def now():
 
     :return: now as datetime with timezone
     """
-    return utc.localize(datetime.utcnow())
+    return datetime.now(UTC)
 
 
 class Event:
@@ -32,19 +33,23 @@ class Event:
         """
         self.uid = -1
         self.summary = None
-        self.location = None
+        self.description = None
         self.start = None
         self.end = None
         self.all_day = True
+        self.recurring = False
+        self.location = None
+        self.private = False
         self.created = None
         self.last_modified = None
 
-    def time_left(self, time=now()):
+    def time_left(self, time=None):
         """
         timedelta form now to event.
 
         :return: timedelta from now
         """
+        time = time or now()
         return self.start - time
 
     def __lt__(self, other):
@@ -54,7 +59,7 @@ class Event:
         :param other: other event
         :return: True if start of this event is smaller than other
         """
-        if not other or not type(other) is Event:
+        if not other or not isinstance(other, Event):
             raise ValueError('Only events can be compared with each other! Other is %s' % type(other))
         else:
             return self.start < other.start
@@ -95,8 +100,6 @@ class Event:
         :param uid: UID of new event
         :return: new event
         """
-        duration = self.end - self.start
-
         if not new_start:
             new_start = self.start
 
@@ -105,10 +108,17 @@ class Event:
 
         ne = Event()
         ne.summary = self.summary
-        ne.location = self.location
+        ne.description = self.description
         ne.start = new_start
-        ne.end = (new_start + duration)
-        ne.all_day = (self.all_day and (new_start - self.start).seconds == 0)
+        
+        if self.end:
+            duration = self.end - self.start
+            ne.end = (new_start + duration)
+
+        ne.all_day = self.all_day
+        ne.recurring = self.recurring
+        ne.location = self.location
+        ne.private = self.private
         ne.uid = uid
         ne.created = self.created
         ne.last_modified = self.last_modified
@@ -116,147 +126,109 @@ class Event:
         return ne
 
 
-def next_year_at(dt, count=1):
-    """
-    Move date <count> years to the future.
-
-    :param dt: date as datetime
-    :param count: number of years
-    :return: date datetime
-    """
-    return normalize(datetime(year=dt.year + count, month=dt.month, day=dt.day, hour=dt.hour, minute=dt.minute,
-                              second=dt.second, microsecond=dt.microsecond))
-
-
-def next_month_at(dt, count=1):
-    """
-    Move date <count> months to the future.
-
-    :param dt: date as datetime
-    :param count: number of months
-    :return: date datetime
-    """
-    year = dt.year
-    month = dt.month + count
-
-    while month > 12:
-        month -= 12
-        year += 1
-
-    return force_berlin_zone(datetime(year=year, month=month, day=dt.day, hour=dt.hour, minute=dt.minute,
-                                      second=dt.second, microsecond=dt.microsecond))
-
-
-def next_month_at_first_tuesday(dt, count=1):
-    """
-    Move date <count> months to the future and set it to the first tuesday of the month.
-
-    :param dt: date as datetime
-    :param count: number of months
-    :return: date datetime
-    """
-    next_month = next_month_at(dt, count)
-    next_month = next_month - timedelta(days=next_month.day - 1)
-    while next_month.weekday() != 1:
-        next_month = next_month + timedelta(days=1)
-    return next_month
-
-
 def force_berlin_zone(dt: datetime) -> datetime:
     tz = timezone('Europe/Berlin')
     return tz.localize(dt.replace(tzinfo=None))
 
 
-def create_event(component):
+def create_event(component, tz=UTC):
     """
     Create an event from its iCal representation.
 
     :param component: iCal component
+    :param tz: timezone for start and end times
     :return: event
     """
-    event_start = normalize(component.get('dtstart').dt)
-    event_end = normalize(component.get('dtend').dt)
 
     event = Event()
 
-    event.start = event_start
-    event.end = event_end
-    event.summary = str(component.get('summary'))
-    event.description = str(component.get('description'))
-    event.location = str(component.get('location')) if component.get('location') is not None else None
+    event.start = normalize(component.get('dtstart').dt, tz=tz)
+    
+    if component.get('dtend'):
+        event.end = normalize(component.get('dtend').dt, tz=tz)
+    elif component.get('duration'): # compute implicit end as start + duration
+        event.end = event.start + component.get('duration').dt
+    else: # compute implicit end as start + 0
+        event.end = event.start
+    
+    try:
+        event.summary = str(component.get('summary'))
+    except UnicodeEncodeError as e:
+        event.summary = str(component.get('summary').encode('utf-8'))
+    try:
+        event.description = str(component.get('description'))
+    except UnicodeEncodeError as e:
+        event.description = str(component.get('description').encode('utf-8'))
     event.all_day = type(component.get('dtstart').dt) is date
-    event.created = component.get('created').dt if component.get('created') else datetime(1970, 1, 1)
-    if event.created.tzinfo is None:
-        event.created = force_berlin_zone(event.created)
-    event.last_modified = component.get('last-modified').dt if component.get('last-modified') is not None else event.created
-    if event.last_modified.tzinfo is None:
-        event.last_modified = force_berlin_zone(event.last_modified)
+    if component.get('rrule'):
+        event.recurring = True
+    try:
+        event.location = str(component.get('location'))
+    except UnicodeEncodeError as e:
+        event.location = str(component.get('location').encode('utf-8'))
+
+    if component.get('attendee'):
+        event.attendee = component.get('attendee')
+        if type(event.attendee) is list:
+            temp = []
+            for a in event.attendee:
+                temp.append(a.encode('utf-8').decode('ascii'))
+            event.attendee = temp
+        else:
+            event.attendee = event.attendee.encode('utf-8').decode('ascii')
+
+    if component.get('uid'):
+        event.uid = component.get('uid').encode('utf-8').decode('ascii')
+
+    if component.get('organizer'):
+        event.organizer = component.get('organizer').encode('utf-8').decode('ascii')
+
+    if component.get('class'):
+        event_class = component.get('class')
+        event.private = event_class == 'PRIVATE' or event_class == 'CONFIDENTIAL'
+
+    if component.get('created'):
+        event.created = normalize(component.get('created').dt, tz)
+
+    if component.get('last-modified'):
+        event.last_modified = normalize(component.get('last-modified').dt, tz)
+    elif event.created:
+        event.last_modified = event.created
+
     return event
 
 
-def normalize(dt):
+def normalize(dt, tz=UTC):
     """
     Convert date or datetime to datetime with timezone.
 
     :param dt: date to normalize
+    :param tz: the normalized date's timezone
     :return: date as datetime with timezone
     """
     if type(dt) is date:
-        dt = datetime(dt.year, dt.month, dt.day, 0, 0)
+        dt = dt + relativedelta(hour=0)
     elif type(dt) is datetime:
-        dt = dt
+        pass
     else:
         raise ValueError("unknown type %s" % type(dt))
 
-    if not dt.tzinfo:
-        dt = utc.localize(dt)
+    if dt.tzinfo:
+        dt = dt.astimezone(tz)
+    else:
+        dt = dt.replace(tzinfo=tz)
 
     return dt
 
 
-def find_last(rule, freq, end, first):
-    last = end
-
-    if rule.get('UNTIL'):
-        last = rule.get('UNTIL')[0]
-    elif rule.get('COUNT'):
-        count = rule.get('COUNT')[0]
-        if freq == 'YEARLY':
-            last = next_year_at(first.start, count=count)
-        elif freq == 'MONTHLY':
-            last = next_month_at(first.start, count=count)
-        elif freq == 'WEEKLY':
-            last = normalize(first.start + timedelta(days=7*count))
-        elif freq == 'DAILY':
-            last = normalize(first.start + timedelta(days=count))
-
-    return normalize(last)
-
-
-def in_range(event_list, start, end):
-    """
-    Find elements in the given time range.
-
-    :param event_list: list of events
-    :param start: start datetime
-    :param end: end datetime
-    :return: events in range
-    """
-    filtered = []
-    for e in event_list:
-        if e.end > start and e.start < end:
-            filtered.append(e)
-
-    return filtered
-
-
-def parse_events(content, start=None, end=None):
+def parse_events(content, start=None, end=None, default_span=timedelta(days=7)):
     """
     Query the events occurring in a given time range.
 
-    :param  content: iCal URL/file content as String
+    :param content: iCal URL/file content as String
     :param start: start date for search, default today
     :param end: end date for search
+    :param default_span: default query length (one week)
     :return: events as list
     """
     if not start:
@@ -265,148 +237,100 @@ def parse_events(content, start=None, end=None):
     if not end:
         end = start + default_span
 
-    if len(content) == 0:
+    if not content:
         raise ValueError('Content is invalid!')
 
     calendar = Calendar.from_ical(content)
+    
+    # Find the calendar's timezone info, or use UTC
+    for c in calendar.walk():
+        if c.name == 'VTIMEZONE':
+            cal_tz = gettz(str(c['TZID']))
+            break;
+    else:
+        cal_tz = UTC
 
-    start = normalize(start)
-    end = normalize(end)
+    start = normalize(start, cal_tz)
+    end = normalize(end, cal_tz)
 
     found = []
 
     for component in calendar.walk():
         if component.name == "VEVENT":
-            if component.get('rrule'):
-                es = create_recurring_events(start, end, component)
-                if es:
-                    found += es
-            else:
-                e = create_event(component)
-                if e.end >= start and e.start <= end:
-                    found.append(e)
+            e = create_event(component, cal_tz)
+            if e.recurring:
+                # Unfold recurring events according to their rrule
+                rule = parse_rrule(component, cal_tz)
+                dur = e.end - e.start
+                found.extend(e.copy_to(dt) for dt in rule.between(start - dur, end, inc=True))
+            elif e.end >= start and e.start <= end:
+                found.append(e)
     return found
 
 
-def create_recurring_events(start, end, component):
+def parse_rrule(component, tz=UTC):
     """
-    Unfold a reoccurring events to its occurrences into the given time frame.
-
-    :param start: start of the time frame
-    :param end: end of the time frame
-    :param component: iCal component
-    :return: occurrences of the event
+    Extract a dateutil.rrule object from an icalendar component. Also includes
+    the component's dtstart and exdate properties. The rdate and exrule
+    properties are not yet supported.
+    
+    :param component: icalendar component
+    :param tz: timezone for DST handling
+    :return: extracted rrule or rruleset
     """
-    start = normalize(start)
-    end = normalize(end)
+    if component.get('rrule'):
+        # component['rrule'] can be both a scalar and a list
+        rrules = component['rrule']
+        if not isinstance(rrules, list):
+            rrules = [rrules]
 
-    rule = component.get('rrule')
+        # Since DTSTART are always made timezone aware, UNTIL with no tzinfo
+        # must be converted to UTC.
+        for rule in rrules:
+            until = rule.get("until")
+            for idx, dt in enumerate(until or []):
+                if not hasattr(dt, 'tzinfo'):
+                    until[idx] = normalize(normalize(dt, tz=tz), tz=UTC)
 
-    unfolded = []
-
-    first = create_event(component)
-    unfolded.append(first)
-
-    freq = str(rule.get('FREQ')[0])
-    last = find_last(rule, freq, end, first)
-
-    if last < start:
-        return
-    elif end < last:
-        limit = end
+        # Parse the rrules, might return a rruleset instance, instead of rrule
+        rule = rrulestr('\n'.join(x.to_ical().decode() for x in rrules), dtstart=normalize(component['dtstart'].dt, tz=tz))
+        
+        if component.get('exdate'):
+            # Make sure, to work with a rruleset
+            if isinstance(rule, rrule):
+                rules = rruleset()
+                rules.rrule(rule)
+                rule = rules
+            
+            # Add exdates to the rruleset
+            for exd in extract_exdates(component):
+                rule.exdate(exd)
+        
+        #TODO: What about rdates and exrules?
+        
+    # You really want an rrule for a component without rrule? Here you are.
     else:
-        limit = last
-
-    current = first
-
-    if freq == 'YEARLY':
-        while True:
-            current = current.copy_to(next_year_at(current.start))
-            if current.start < limit:
-                unfolded.append(current)
-            else:
-                break
-    if freq == 'MONTHLY':
-        by_day = rule.get('BYDAY')
-        if by_day == ["1TU"]:  # TODO support more variants
-            while True:
-                current = current.copy_to(next_month_at_first_tuesday(current.start))
-                if current.start <= limit:
-                    unfolded.append(current)
-                else:
-                    break
-        else:
-            while True:
-                current = current.copy_to(next_month_at(current.start))
-                if current.start <= limit:
-                    unfolded.append(current)
-                else:
-                    break
-    else:
-        if freq == 'DAILY':
-            delta = timedelta(days=1)
-        elif freq == 'WEEKLY':
-            delta = timedelta(days=7 * rule.get("INTERVAL", [1])[0])
-        else:
-            return
-
-        by_day = rule.get('BYDAY')
-        if by_day:
-            day_deltas = generate_day_deltas_by_weekday(set(by_day))
-            if rule.get("INTERVAL") == [2]:
-                day_deltas = {weekday: delta * 2 for weekday, delta in day_deltas.items()}
-        else:
-            day_deltas = None
-
-        while True:
-            if day_deltas is not None:
-                delta = timedelta(days=day_deltas.get(current.start.weekday()))
-
-            current = current.copy_to(add_time_delta_dst_aware(current.start, delta))
-            if current.start < limit:
-                unfolded.append(current)
-            else:
-                break
-
-    return in_range(unfolded, start, end)
+        rule = rruleset()
+        rule.rdate(normalize(component['dtstart'].dt, tz=tz))
+    
+    return rule
 
 
-def add_time_delta_dst_aware(dt: datetime, delta: timedelta) -> datetime:
-    """inspired by https://stackoverflow.com/questions/25715276/python-daylight-saving-time-issues/25725161#25725161"""
-    orig_tz = dt.tzinfo
-    dt = dt.replace(tzinfo=None)
-    dt += delta
-    return orig_tz.localize(dt)
-
-
-def generate_day_deltas_by_weekday(by_day):
+def extract_exdates(component):
     """
-    Create a dict to determine how many days to add to the current
-    event to get the next event when a WEEKLY rule contains a
-    BYDAY clause.
-
-    The resulting dictionary has the weekday number as keys and the
-    number of days to add to get the next event as values. Weekday
-    numbers are the same as those assigned by the date.weekday()
-    function.
-
-    :param by_day: list or set of two-letter weekday abbreviations
-    :return: dict mapping weekday numbers to day deltas
+    Compile a list of all exception dates stored with a component.
+    
+    :param component: icalendar iCal component
+    :return: list of exception dates
     """
-    weekdays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
+    dates = []
 
-    selected_weekday_numbers = []
-    day_deltas = []
-    hop_count = 0
-    for weekday_number, weekday_name in enumerate(weekdays):
-        if weekday_name in by_day:
-            selected_weekday_numbers.append(weekday_number)
-            day_deltas.append(hop_count)
-            hop_count = 0
-        hop_count += 1
+    exd_prop = component.get('exdate')
+    if exd_prop:
+        if isinstance(exd_prop, list): # In case there is more than one exdate property
+            for exd_list in exd_prop:
+                dates.extend(normalize(exd.dt) for exd in exd_list.dts)
+        elif isinstance(exd_prop, vDDDLists):
+            dates.extend(normalize(exd.dt) for exd in exd_prop.dts)
 
-    # readjust the first deltas to include the remaining deltas
-    first_hop_count = day_deltas[0] + hop_count
-    adjusted_deltas = day_deltas[1:] + [first_hop_count]
-
-    return dict(zip(selected_weekday_numbers, adjusted_deltas))
+    return dates

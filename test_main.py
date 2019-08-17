@@ -7,7 +7,7 @@ from icalevents import icalevents
 from main import event_description, events_of_week, events_in_near_future, new_events, modified_events, get_messages, \
     check_for_changes
 
-ics = """
+ics = b"""
 BEGIN:VCALENDAR
 VERSION:2.0
 CALSCALE:GREGORIAN

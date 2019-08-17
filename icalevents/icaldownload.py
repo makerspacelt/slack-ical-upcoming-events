@@ -5,7 +5,11 @@ from httplib2 import Http
 
 
 # default http connection to use
-default_http = Http('.cache')
+try:
+    default_http = Http('.cache')
+except PermissionError:
+    # Cache disabled if no write permission in working directory
+    default_http = Http()
 
 
 def apple_data_fix(content):
@@ -26,9 +30,8 @@ def apple_url_fix(url):
     :return: fixed URL
     """
     if url.startswith("webcal://"):
-        return url.replace('webcal://', 'http://', 1)
-    else:
-        return url
+        url = url.replace('webcal://', 'http://', 1)
+    return url
 
 
 class ICalDownload:
@@ -50,9 +53,9 @@ class ICalDownload:
         if apple_fix:
             url = apple_url_fix(url)
 
-        response, content = self.http.request(url)
+        _, content = self.http.request(url)
 
-        if not content or len(content) == 0:
+        if not content:
             raise ConnectionError('Could not get data from %s!' % url)
 
         return self.decode(content, apple_fix=apple_fix)
@@ -68,13 +71,13 @@ class ICalDownload:
         with open(file, mode='rb') as f:
             content = f.read()
 
-        if not content or len(content) == 0:
+        if not content:
             raise IOError("File %f is not readable or is empty!" % file)
 
         return self.decode(content, apple_fix=apple_fix)
 
     def data_from_string(self, string_content, apple_fix=False):
-        if not string_content or len(string_content) == 0:
+        if not string_content:
             raise IOError("String content is not readable or is empty!")
 
         return self.decode(string_content, apple_fix=apple_fix)
@@ -87,8 +90,7 @@ class ICalDownload:
         :param apple_fix: fix Apple txdata bug
         :return: decoded (and fixed) content
         """
-        if type(content) != str:
-            content = content.decode(self.encoding)
+        content = content.decode(self.encoding)
         content = content.replace('\r', '')
 
         if apple_fix:
