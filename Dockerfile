@@ -1,7 +1,7 @@
 FROM ubuntu:bionic
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update -y && \
-    apt-get install -y python3-pip tzdata
+    apt-get install -y python3-pip tzdata git
 # We copy just the requirements.txt first to leverage Docker cache
 COPY ./requirements.txt /app/requirements.txt
 WORKDIR /app
