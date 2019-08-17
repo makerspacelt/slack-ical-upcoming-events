@@ -8,7 +8,7 @@ coverage==4.5.4
 httplib2==0.13.1
 hyperlink==19.0.0
 icalendar==4.0.3
--e git://github.com/fscs/icalevents.git@fd85ac746e7fa251361d01fe508baf558fcdeb7b#egg=icalevents
+-e git://github.com/fscs/icalevents.git@master#egg=icalevents
 idna==2.8
 incremental==17.5.0
 more-itertools==7.2.0
