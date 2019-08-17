@@ -50,7 +50,9 @@ def event_description(event: Event) -> str:
         return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), datetime_as_string(end), location)
 
 
-def to_datetime(d: Union[datetime, date]) -> datetime:
+def to_datetime(d: Optional[Union[datetime, date]]) -> datetime:
+    if d is None:
+        return datetime(1970, 1, 1, tzinfo=UTC)
     if isinstance(d, datetime):
         return d
     return datetime.combine(d, time(0, 0, tzinfo=UTC))
