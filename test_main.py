@@ -261,6 +261,13 @@ def test_no_new_events():
     assert len(new_events(events, datetime(2018, 7, 22, 15, 5, tzinfo=UTC))) == 0
 
 
+def test_new_events_ignore_uids():
+    new = new_events(events, datetime(2018, 7, 22, 15, 3, tzinfo=UTC), ignore_uids=None)
+    assert len(new) == 1
+    new_with_ignore = new_events(events, datetime(2018, 7, 22, 15, 3, tzinfo=UTC), ignore_uids=new[0].uid)
+    assert len(new_with_ignore) == 0
+
+
 def test_modified_events():
     future = modified_events(events, datetime(2018, 7, 22, 15, 3, tzinfo=UTC))
     assert len(future) == 1

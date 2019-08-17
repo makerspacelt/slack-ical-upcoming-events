@@ -70,10 +70,21 @@ def events_in_near_future(events: [Event], now: datetime) -> [Event]:
     return [e for e in events if start <= to_datetime(e.start) < end]
 
 
-def new_events(events: [Event], now: datetime) -> [Event]:
-    start = now - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
-    end = now
-    return [e for e in events if start <= to_datetime(e.created) < end]
+def new_events(events: [Event], now: datetime, ignore_uids: Optional[set] = None) -> [Event]:
+    """
+    If ignore_uids is set, consider more events as new if they fall in a greater interval but are not included in the
+    ignore set. This prevents missing new events created shortly before the bot requests new data (time stamp created
+    by client application before uploaded to server).
+    """
+    if ignore_uids is None:
+        start = now - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
+        end = now
+        return [e for e in events if start <= to_datetime(e.created) < end]
+    else:
+        start = now - timedelta(minutes=60 * UPDATE_INTERVAL_MINUTES)
+        end = now
+        return [e for e in events if start <= to_datetime(e.created) < end
+                if e.uid not in ignore_uids]
 
 
 def modified_events(events: [Event], now: datetime) -> [Event]:
@@ -87,9 +98,9 @@ def get_message(msg: str, events: [Event]) -> dict:
     return {"text": msg + "\n" + "\n".join([event_description(e) for e in events])}
 
 
-def get_messages(events, now):
+def get_messages(events, now, ignore_uids: Optional[set] = None):
     messages = []
-    new = new_events(events, now)
+    new = new_events(events, now, ignore_uids)
     if len(new) > 0:
         messages.append(get_message("New event:", new))
 
@@ -121,8 +132,11 @@ def post_error_message(msg: dict):
     requests.post(WEBHOOK_ERROR_URL, json=msg)
 
 
-def check_for_changes():
-    logging.info("checking for changes")
+def check_for_changes(seen_uids: Optional[set] = None):
+    if seen_uids is None:
+        seen_uids = {}
+
+    logging.info("checking for changes, %d event uids known" % len(seen_uids))
 
     try:
         now = datetime.now(tz=UTC)
@@ -133,12 +147,15 @@ def check_for_changes():
                                                        start=now - timedelta(days=365),
                                                        end=now + timedelta(days=3 * 365))])
 
-        messages = get_messages(events, now)
+        messages = get_messages(events, now, seen_uids if len(seen_uids) > 0 else None)
 
         for message in messages:
             post_message(message)
 
-        logging.info("checking for changes done")
+        seen_uids.clear()
+        seen_uids.update({e.uid for e in events})
+
+        logging.info("checking for changes done, %d event uids known" % len(seen_uids))
     except Exception as e:
         logging.error(str(e))
         try:
@@ -156,7 +173,7 @@ def main():
     logging.basicConfig(format='%(process)d %(asctime)s %(levelname)s: %(message)s',
                         level=logging.INFO, stream=sys.stdout)
 
-    loop = task.LoopingCall(check_for_changes)
+    loop = task.LoopingCall(check_for_changes, set())
     deferred = loop.start(UPDATE_INTERVAL_MINUTES * 60)
     deferred.addErrback(error_handler)
 
