@@ -1,8 +1,6 @@
-Simple Slack app which triggers a webhook when
-* a calender event is created
-* a calender event is modified
-* a calender event starts in around 15 minutes
-* a new week starts (summary of upcoming events)
+Simple Slack app which posts upcoming events using webhooks
+* for the whole week every Monday
+* for this day every day except Monday
 
 This app supports iCalendar (iCal, ics) files, which can be created by many CalDAV servers like ownCloud or nextcloud.
 
@@ -15,3 +13,22 @@ CALENDAR_URLS=https://...ics, https://...ics
 WEBHOOK_URL=https://hooks.slack.com/services/...
 WEBHOOK_ERROR_URL=https://hooks.slack.com/services/...
 ```
+
+## Testing
+
+```shell
+# Setup Python virtual environment
+python -m venv venv
+. ./venv/bin/activate
+pip install -r requirements.txt
+
+# Run locally
+. ./venv/bin/activate
+# print next week's & today's event to console
+python main.py test-print
+# send next week's & today's event to slack
+python main.py test-send
+# check calendar periodically and send week's events on Monday and day's events every day
+python main.py
+```
+

@@ -75,7 +75,7 @@ def to_datetime(d: Optional[Union[datetime, date]]) -> datetime:
     return datetime.combine(d, time(0, 0, tzinfo=UTC))
 
 def events_of_day(events: [Event], now: datetime) -> [Event]:
-    start = now.replace(day=now.day + 2)
+    start = now
     end = start.replace(hour=23, minute=59, second=59)
     return [e for e in events if start <= to_datetime(e.start) < end]
 
