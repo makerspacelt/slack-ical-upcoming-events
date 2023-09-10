@@ -2,6 +2,8 @@ version: '3'
 services:
  slack-ics:
    build: .
-   image: fscs/slack-ics
+   image: makerspacelt/slack-ical-upcoming-events
    env_file:
      - .env
+   volumes:
+     - './main.py:/app/main.py'
