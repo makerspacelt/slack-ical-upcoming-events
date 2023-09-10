@@ -13,19 +13,24 @@ from twisted.python.failure import Failure
 import icalevents.icalevents as icalevents
 from icalevents.icalparser import Event
 
+# when to send week/day event list, in UTC
+UPDATE_WEEK_AT_HOUR = 12
+UPDATE_DAY_AT_HOUR = 8
+
 UPDATE_INTERVAL_MINUTES = 2
 
+TZ = timezone('Europe/Vilnius')
 URLS = environ.get("CALENDAR_URLS", "").split(", ")
 WEBHOOK_URL = environ.get("WEBHOOK_URL")
 WEBHOOK_ERROR_URL = environ.get("WEBHOOK_ERROR_URL")
 
 
 def date_as_string(date: Union[datetime, date]) -> str:
-    return date.strftime("%d.%m.%Y")
+    return date.strftime("%Y-%m-%d")
 
 
 def datetime_as_string(date: datetime) -> str:
-    return date.strftime("%d.%m.%Y %H:%M")
+    return date.strftime("%Y-%m-%d %H:%M")
 
 
 def time_as_string(date: datetime) -> str:
@@ -33,21 +38,33 @@ def time_as_string(date: datetime) -> str:
 
 
 def event_description(event: Event) -> str:
-    start = event.start  # type: datetime
-    end = event.end  # type: datetime
+    start = event.start.astimezone(TZ)  # type: datetime
+    end = event.end.astimezone(TZ)  # type: datetime
     summary = event.summary  # type: str
     location = event.location  # type: Optional[str]
     if location is None:
-        location = "<no location>"
+        location = ""
+    else:
+        location = f" at {location}"
+
+    start_fmt = date_as_string(start)
+
     if event.all_day:
         end_day = end.date() - timedelta(days=1)
         if start.date() == end_day:
-            return "*%s* %s at %s" % (summary, date_as_string(start), location)
-        return "*%s* from %s to %s at %s" % (summary, date_as_string(start), date_as_string(end_day), location)
+            start_fmt = date_as_string(start)
+            return f"*{summary}* {start_fmt}{location}"
+        start_fmt = date_as_string(start)
+        end_fmt = date_as_string(end_day)
+        return f"*{summary}* from {start_fmt} to {end_fmt}{location}"
     else:
         if start.date() == end.date():
-            return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), time_as_string(end), location)
-        return "*%s* from %s to %s at %s" % (summary, datetime_as_string(start), datetime_as_string(end), location)
+            start_fmt = datetime_as_string(start)
+            end_fmt = time_as_string(end)
+            return f"*{summary}* from {start_fmt} to {end_fmt}{location}"
+        start_fmt = datetime_as_string(start)
+        end_fmt = time_as_string(end)
+        return f"*{summary}* from {start_fmt} to {end_fmt}{location}"
 
 
 def to_datetime(d: Optional[Union[datetime, date]]) -> datetime:
@@ -57,6 +74,10 @@ def to_datetime(d: Optional[Union[datetime, date]]) -> datetime:
         return d
     return datetime.combine(d, time(0, 0, tzinfo=UTC))
 
+def events_of_day(events: [Event], now: datetime) -> [Event]:
+    start = now.replace(day=now.day + 2)
+    end = start.replace(hour=23, minute=59, second=59)
+    return [e for e in events if start <= to_datetime(e.start) < end]
 
 def events_of_week(events: [Event], now: datetime) -> [Event]:
     start = now
@@ -64,60 +85,30 @@ def events_of_week(events: [Event], now: datetime) -> [Event]:
     return [e for e in events if start <= to_datetime(e.start) < end]
 
 
-def events_in_near_future(events: [Event], now: datetime) -> [Event]:
-    start = now + timedelta(minutes=15)
-    end = start + timedelta(minutes=UPDATE_INTERVAL_MINUTES)
-    return [e for e in events if start <= to_datetime(e.start) < end]
-
-
-def new_events(events: [Event], now: datetime, ignore_uids: Optional[set] = None) -> [Event]:
-    """
-    If ignore_uids is set, consider more events as new if they fall in a greater interval but are not included in the
-    ignore set. This prevents missing new events created shortly before the bot requests new data (time stamp created
-    by client application before uploaded to server).
-    """
-    if ignore_uids is None:
-        start = now - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
-        end = now
-        return [e for e in events if start <= to_datetime(e.created) < end]
-    else:
-        start = now - timedelta(minutes=60 * UPDATE_INTERVAL_MINUTES)
-        end = now
-        return [e for e in events if start <= to_datetime(e.created) < end
-                if e.uid not in ignore_uids]
-
-
-def modified_events(events: [Event], now: datetime) -> [Event]:
-    start = now - timedelta(minutes=UPDATE_INTERVAL_MINUTES)
-    end = now
-    return [e for e in events if start <= to_datetime(e.last_modified) < end
-            and not(start <= to_datetime(e.created) < end)]
-
-
 def get_message(msg: str, events: [Event]) -> dict:
-    return {"text": msg + "\n" + "\n".join([event_description(e) for e in events])}
+    events_fmt = "• " + "\n• ".join([event_description(e) for e in events])
+    return {"text": "\n".join((msg, events_fmt))}
 
 
-def get_messages(events, now, ignore_uids: Optional[set] = None):
+def get_messages(events, now, force_send_week=False, force_send_day=False):
     messages = []
-    new = new_events(events, now, ignore_uids)
-    if len(new) > 0:
-        messages.append(get_message("New event:", new))
 
-    modified = modified_events(events, now)
-    if len(modified) > 0:
-        messages.append(get_message("Modified event:", modified))
-
-    near_future = events_in_near_future(events, now)
-    if len(near_future) > 0:
-        messages.append(get_message("Event starting soon:", near_future))
-
-    if now.weekday() == 0 and now.hour == 7 and now.minute < UPDATE_INTERVAL_MINUTES:
+    send_week = now.weekday() == 0 and \
+        now.hour == UPDATE_WEEK_AT_HOUR and \
+        now.minute < UPDATE_INTERVAL_MINUTES
+    send_day = now.weekday() > 0 and \
+        now.hour == UPDATE_DAY_AT_HOUR and \
+        now.minute < UPDATE_INTERVAL_MINUTES
+    if force_send_week or send_week:
         week = events_of_week(events, now)
         if len(week) > 0:
             messages.append(get_message("Events this week:", week))
         else:
             messages.append(get_message("No events this week 😢", []))
+    elif force_send_day or send_day:
+        day = events_of_day(events, now)
+        if len(day) > 0:
+            messages.append(get_message("Events today:", day))
 
     return messages
 
@@ -132,30 +123,26 @@ def post_error_message(msg: dict):
     requests.post(WEBHOOK_ERROR_URL, json=msg)
 
 
-def check_for_changes(seen_uids: Optional[set] = None):
-    if seen_uids is None:
-        seen_uids = {}
+def get_events(now: datetime) -> [Event]:
+    return sorted([event
+                   for url in URLS
+                   for event in icalevents.events(url,
+                                                  start=now - timedelta(days=365),
+                                                  end=now + timedelta(days=3 * 365))])
 
-    logging.info("checking for changes, %d event uids known" % len(seen_uids))
+
+def check_for_changes():
+    logging.info("checking for changes")
 
     try:
         now = datetime.now(tz=UTC)
 
-        events = sorted([event
-                        for url in URLS
-                        for event in icalevents.events(url,
-                                                       start=now - timedelta(days=365),
-                                                       end=now + timedelta(days=3 * 365))])
-
-        messages = get_messages(events, now, seen_uids if len(seen_uids) > 0 else None)
-
+        events = get_events(now)
+        messages = get_messages(events, now, force_send_day=False, force_send_week=False)
         for message in messages:
             post_message(message)
 
-        seen_uids.clear()
-        seen_uids.update({e.uid for e in events})
-
-        logging.info("checking for changes done, %d event uids known" % len(seen_uids))
+        logging.info("checking for changes done, %d events found" % len(events))
     except Exception as e:
         logging.error(str(e))
         try:
@@ -173,12 +160,34 @@ def main():
     logging.basicConfig(format='%(process)d %(asctime)s %(levelname)s: %(message)s',
                         level=logging.INFO, stream=sys.stdout)
 
-    loop = task.LoopingCall(check_for_changes, set())
+    loop = task.LoopingCall(check_for_changes)
     deferred = loop.start(UPDATE_INTERVAL_MINUTES * 60)
     deferred.addErrback(error_handler)
 
     reactor.run()
 
+def test(publish=False):
+    now = datetime.now(tz=UTC)
+
+    events = get_events(now)
+    messages = get_messages(events, now, force_send_week=True)
+    for message in messages:
+        print(message)
+    messages = get_messages(events, now, force_send_day=True)
+    for message in messages:
+        if publish:
+            post_message(message)
+        else:
+            print(message)
+
 
 if __name__ == '__main__':
-    main()
+    action = len(sys.argv) > 1 and sys.argv[1] or 'production'
+    if action == 'test-print':
+        test()
+    elif action == 'test-send':
+        test(publish=True)
+    elif action == 'production':
+        main()
+    else:
+        print(f'usage: {sys.argv[0]} [production|test-print|test-send]')
