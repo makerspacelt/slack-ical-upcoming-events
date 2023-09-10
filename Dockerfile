@@ -6,7 +6,7 @@ RUN apt-get update -y && \
 # We copy just the requirements.txt first to leverage Docker cache
 COPY ./requirements.txt /app/requirements.txt
 WORKDIR /app
-RUN pip3 install -r requirements.txt
+RUN pip3 install --break-system-packages -r requirements.txt
 COPY . /app
 ENTRYPOINT ["python3"]
 CMD ["main.py"]
