@@ -1,7 +1,6 @@
 version: '3'
 services:
  slack-upcoming-events:
-   build: .
-   image: makerspacelt/slack-upcoming-events
+   image: ghcr.io/makerspacelt/slack-upcoming-events
    env_file:
      - .env
