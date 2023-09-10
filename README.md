@@ -14,6 +14,11 @@ WEBHOOK_URL=https://hooks.slack.com/services/...
 WEBHOOK_ERROR_URL=https://hooks.slack.com/services/...
 ```
 
+Run with docker-compose:
+```shell
+docker-compose up
+```
+
 ## Testing
 
 ```shell
@@ -21,6 +26,11 @@ WEBHOOK_ERROR_URL=https://hooks.slack.com/services/...
 python -m venv venv
 . ./venv/bin/activate
 pip install -r requirements.txt
+
+# Setup env
+export CALENDAR_URLS=https://...ics
+export WEBHOOK_URL=https://hooks.slack.com/services/...
+export WEBHOOK_ERROR_URL=https://hooks.slack.com/services/...
 
 # Run locally
 . ./venv/bin/activate
