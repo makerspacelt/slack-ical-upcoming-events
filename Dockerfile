@@ -1,4 +1,5 @@
 FROM debian:bookworm
+LABEL org.opencontainers.image.source=https://github.com/makerspacelt/slack-ical-upcoming-events
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update -y && \
     apt-get install -y python3-pip tzdata git
