@@ -1,4 +1,4 @@
-FROM ubuntu:bionic
+FROM debian:bookworm
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update -y && \
     apt-get install -y python3-pip tzdata git
