@@ -14,8 +14,8 @@ import icalevents.icalevents as icalevents
 from icalevents.icalparser import Event
 
 # when to send week/day event list, in UTC
-UPDATE_WEEK_AT_HOUR = 12
-UPDATE_DAY_AT_HOUR = 8
+UPDATE_WEEK_AT_HOUR = 6
+UPDATE_DAY_AT_HOUR = 6
 
 UPDATE_INTERVAL_MINUTES = 2
 
